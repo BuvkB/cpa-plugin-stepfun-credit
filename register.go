@@ -6,8 +6,8 @@ import (
 )
 
 const pluginName = "StepFun Credit Tracker"
-const pluginVersion = "1.1.0"
-const pluginRepo = "https://github.com/curi/cpa-plugin-stepfun-credit"
+const pluginVersion = "1.1.1"
+const pluginRepo = "https://github.com/BuvkB/cpa-plugin-stepfun-credit"
 
 // StepFun 官方图标（开放平台 title-logo）
 const pluginLogo = "https://platform.stepfun.com/images/title-logo.png"
@@ -76,7 +76,7 @@ func registerPlugin(raw []byte) registration {
 		Metadata: metadata{
 			Name:             pluginName,
 			Version:          pluginVersion,
-			Author:           "curi",
+			Author:           "BuvkB",
 			GitHubRepository: pluginRepo,
 			Logo:             pluginLogo,
 			ConfigFields: []configField{
