@@ -5,13 +5,30 @@ CLIProxyAPI 插件：实时统计 **StepFun Step Plan** 的 Credit 消耗。
 StepFun 官方没有开放订阅月池的查询接口，所以这个插件在 CPA 侧按每个请求的真实 token 用量、
 结合官方单价折算 Credit，让你随时知道这个月花了多少、还剩多少。
 
+![dashboard](docs/dashboard-light.png)
+
 ## 功能
 
 - 每次请求完成后实时记账（输入 / 缓存命中 / 输出 token、延迟、成败）
 - 左侧菜单新增「StepFun Credit」页面，随 CPAMC 主题自动切换深浅色
-- 时间范围（1 小时 ~ 全部）与粒度（分钟 / 小时 / 日 / 周 / 月）可切换，鼠标悬停看单点明细
+- 时间范围（1 小时 ~ 全部）与粒度（分钟 / 小时 / 日 / 周 / 月）可切换
+- 鼠标悬停查看单点明细（Credit、金额、请求数、失败数、输入输出）
 - 支持登记多个订阅（各自档位或自定义额度），自动累加为总月池，显示已用 / 剩余 / 占比
 - 内置 StepFun 官方单价；接入方式自动识别，无需手动配置 provider 名
+
+## 截图
+
+深色主题（跟随 CPAMC）：
+
+![dashboard dark](docs/dashboard-dark.png)
+
+悬停查看单个时间点的明细：
+
+![tooltip](docs/tooltip.png)
+
+月池额度设置，支持多个订阅（不同档位可分别填写）：
+
+![settings](docs/settings.png)
 
 ## 安装
 
