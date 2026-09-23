@@ -20,9 +20,7 @@ build() {
 
 build linux amd64 gcc .so
 build linux arm64 aarch64-linux-gnu-gcc .so
-# darwin/windows 需在对应平台执行：
-#   build darwin  arm64 "" .dylib
-#   build darwin  amd64 "" .dylib
+# windows 需在对应平台执行：
 #   build windows amd64 "" .dll
 
 (cd dist && sha256sum *.zip > checksums.txt && cat checksums.txt)

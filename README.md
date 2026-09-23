@@ -30,6 +30,10 @@ StepFun 官方没有开放订阅月池的查询接口，所以这个插件在 CP
 
 ![settings](docs/settings.png)
 
+## 支持的平台
+
+提供 `linux_amd64`、`linux_arm64`、`windows_amd64` 三种预编译产物。
+
 ## 安装
 
 从 Releases 下载对应平台的 zip，解压后把动态库放进 CPA 的插件目录：

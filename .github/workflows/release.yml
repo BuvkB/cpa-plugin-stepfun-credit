@@ -18,9 +18,6 @@ jobs:
         include:
           - { runner: ubuntu-latest,  goos: linux,   goarch: amd64, ext: .so,    cc: gcc }
           - { runner: ubuntu-latest,  goos: linux,   goarch: arm64, ext: .so,    cc: aarch64-linux-gnu-gcc, cross: true }
-          # macos-13（Intel runner）排队极久，改用 macos-latest 交叉编译 x86_64
-          - { runner: macos-latest,   goos: darwin,  goarch: amd64, ext: .dylib }
-          - { runner: macos-latest,   goos: darwin,  goarch: arm64, ext: .dylib }
           - { runner: windows-latest, goos: windows, goarch: amd64, ext: .dll }
     steps:
       - uses: actions/checkout@v4
