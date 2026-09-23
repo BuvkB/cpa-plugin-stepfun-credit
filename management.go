@@ -87,24 +87,26 @@ func registerManagement(raw []byte) managementRegistrationResponse {
 	state.routes = routes
 	state.mu.Unlock()
 
+	// 安全边界：/v0/resource/plugins/<id>/* 是**免鉴权**的静态资源路径，
+	// 只允许放被动静态内容（HTML/CSS/JS）。任何动态数据都必须注册为
+	// Routes（/v0/management/plugins/<id>/*），由 CPA 管理密钥保护。
 	return managementRegistrationResponse{
 		Routes: []managementRoute{
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/summary", Description: "StepFun Credit 用量汇总。"},
-			{Method: http.MethodPost, Path: "/plugins/" + pluginID + "/reset", Description: "清空本插件的用量记录。"},
+			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/requests", Description: "最近的 StepFun 请求明细。"},
+			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/prices", Description: "当前生效的模型单价。"},
+			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/quota", Description: "月池总额度设置。"},
+			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/discovery", Description: "StepFun 接入识别结果。"},
 			{Method: http.MethodPut, Path: "/plugins/" + pluginID + "/prices", Description: "保存模型单价。"},
 			{Method: http.MethodPut, Path: "/plugins/" + pluginID + "/quota", Description: "保存月池总额度设置。"},
+			{Method: http.MethodPost, Path: "/plugins/" + pluginID + "/reset", Description: "清空本插件的用量记录。"},
 		},
 		Resources: []resourceRoute{
 			{
 				Path:        "/dashboard",
 				Menu:        "StepFun Credit",
-				Description: "实时查看 StepFun 订阅 Credit 的消耗情况。",
+				Description: "StepFun Credit 用量面板（纯静态页面，数据经管理接口按需拉取）。",
 			},
-			{Path: "/summary", Description: "StepFun Credit 用量汇总 JSON。"},
-			{Path: "/requests", Description: "最近的 StepFun 请求明细 JSON。"},
-			{Path: "/prices", Description: "当前生效的模型单价 JSON。"},
-			{Path: "/quota", Description: "月池总额度设置 JSON。"},
-			{Path: "/discovery", Description: "自动发现的 StepFun 接入与识别依据 JSON。"},
 		},
 	}
 }

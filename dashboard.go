@@ -213,10 +213,28 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   </div>
 </div></dialog>
 
+<div id="gate" style="display:none;position:fixed;inset:0;z-index:99;align-items:center;justify-content:center;background:rgba(0,0,0,.45)">
+  <div style="background:var(--bg-primary);border:1px solid var(--border-color);border-radius:12px;padding:22px 24px;max-width:430px;width:92%">
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:600">需要 CPA 管理密钥</h3>
+    <p style="margin:0 0 14px;color:var(--text-tertiary);font-size:12.5px;line-height:1.7">
+      用量数据属于敏感信息，按 CLIProxyAPI 路由规范，读取需经管理密钥鉴权。<br>
+      密钥仅保存在本标签页的 sessionStorage，关闭即失效，不写入服务器。
+    </p>
+    <div style="display:flex;gap:8px">
+      <input id="gateInput" type="password" autocomplete="off" placeholder="Management Key"
+        style="flex:1;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);
+               border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit">
+      <button id="gateBtn" class="primary">进入</button>
+    </div>
+    <div id="gateErr" style="color:var(--warning-color);font-size:12.5px;margin-top:8px;min-height:16px"></div>
+  </div>
+</div>
+
 <script>
 (function(){
 'use strict';
-var RB = '/v0/resource/plugins/stepfun-credit-tracker';
+var MB = '/v0/management/plugins/stepfun-credit-tracker';
+var MKI = 'stepfun-credit-mgmt-key';   // sessionStorage 键名（仅当前标签页有效）
 var INTERVAL_MS = 30000;
 var timer = null, presets = [], loading = false, QUOTA_KEY = 'stepfun-credit-quota';
 var RANGE_KEY = 'stepfun-credit-range', GRAN_KEY = 'stepfun-credit-gran';
@@ -256,7 +274,17 @@ try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change
 detectTheme();
 
 /* ---------- 工具 ---------- */
-function get(p){ return fetch(RB + p, {cache:'no-store'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
+function mgmtKey(){ try { return sessionStorage.getItem(MKI) || ''; } catch (e) { return ''; } }
+function setMgmtKey(k){ try { if (k) sessionStorage.setItem(MKI, k); else sessionStorage.removeItem(MKI); } catch (e) {} }
+// 数据全部走管理接口（受 CPA 管理密钥保护）
+function get(p){
+  return fetch(MB + p, {cache:'no-store', headers:{'Authorization':'Bearer '+mgmtKey()}})
+    .then(function(r){
+      if (r.status === 401 || r.status === 403) { var e = new Error('NEED_KEY'); e.needKey = true; throw e; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+}
 function normalizeQuota(q){
   if (!q) return {subscriptions: []};
   if (Array.isArray(q.subscriptions)) return q;
@@ -292,7 +320,19 @@ function fmt(n){ if(n==null) return '—'; return Number(n).toLocaleString('zh-C
 function credit(c){ return fmt(Math.round((c||0)*1e6)); }
 function yuan(c){ c=c||0; return '¥'+(c>0&&c<0.01?c.toFixed(4):c.toFixed(2)); }
 function localTime(iso){ try{ return new Date(iso).toLocaleString('zh-CN',{hour12:false}); }catch(e){ return iso; } }
-function showErr(e){ var el=document.getElementById('err'); el.style.display='block'; el.textContent='取数失败：'+e.message; }
+function showErr(e){
+  if (e && e.needKey) { blockUI(true); return; }
+  var el = document.getElementById('err');
+  el.style.display = 'block';
+  el.textContent = '取数失败：' + e.message;
+}
+// 需要管理密钥时遮蔽页面并弹框
+function blockUI(on){
+  var gate = document.getElementById('gate');
+  var wrap = document.getElementById('wrap');
+  if (gate) gate.style.display = on ? 'flex' : 'none';
+  if (wrap) wrap.style.visibility = on ? 'hidden' : 'visible';
+}
 function hideErr(){ document.getElementById('err').style.display='none'; }
 
 /* ---------- 渲染 ---------- */
@@ -699,7 +739,7 @@ function saveSettings(){
   document.getElementById('setDlg').close();
   load();
 }
-document.getElementById('refresh').addEventListener('click', load);
+document.getElementById('refresh').addEventListener('click', function(){ if (!mgmtKey()) { blockUI(true); return; } load(); });
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('cancelSet').addEventListener('click', function(){ document.getElementById('setDlg').close(); });
 document.getElementById('saveSet').addEventListener('click', saveSettings);
@@ -713,8 +753,39 @@ document.getElementById('clearQuota').addEventListener('click', function(){
   renderSubRows(); updateSubTotal();
 });
 
-load();
-startTimer();
+// 启动：先检查是否已有密钥；没有则弹框要求输入
+(function boot(){
+  var gate = document.getElementById('gate');
+  var input = document.getElementById('gateInput');
+  var btn = document.getElementById('gateBtn');
+  var errEl = document.getElementById('gateErr');
+
+  function submit(){
+    var k = (input.value || '').trim();
+    if (!k) { errEl.textContent = '请输入管理密钥'; return; }
+    btn.disabled = true;
+    errEl.textContent = '校验中…';
+    // 用受保护的接口验证密钥有效性
+    fetch(MB + '/quota', {headers:{'Authorization':'Bearer ' + k}, cache:'no-store'})
+      .then(function(r){
+        if (r.status === 401 || r.status === 403) throw new Error('密钥不正确');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        setMgmtKey(k);
+        input.value = '';
+        blockUI(false);
+        load();
+        startTimer();
+      })
+      .catch(function(e){ errEl.textContent = e.message; })
+      .then(function(){ btn.disabled = false; });
+  }
+
+  btn.addEventListener('click', submit);
+  input.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') submit(); });
+
+  if (mgmtKey()) { load(); startTimer(); }
+  else { blockUI(true); }
+})();
 })();
 </script>
 </body>

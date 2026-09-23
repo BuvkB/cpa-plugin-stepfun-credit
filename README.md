@@ -78,6 +78,7 @@ openai-compatibility:
 - Credit 折算口径：`1 元 = 1,000,000 Credit`
 - 记账发生在 CPA 侧，是精确的 token 折算值；官方月池余额仍以 StepFun 控制台为准
 - 插件不保存 prompt、请求正文或响应正文
+- **安全**：面板数据经 CPA 管理密钥鉴权后读取（`/v0/management/plugins/...`）；密钥仅存于浏览器 sessionStorage，关闭标签页即失效
 
 ## 许可
 

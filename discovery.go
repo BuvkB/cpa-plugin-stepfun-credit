@@ -32,7 +32,8 @@ type observedProvider struct {
 type discoveryState struct {
 	sync.RWMutex
 	observed   map[string]*observedProvider // key = provider|base_url
-	authProbe  []string                     // host.auth.list 探测到的原始条目（诊断用）
+	authTotal   int                          // 凭据总数（仅计数，不含任何标识）
+	authStepfun int                          // 其中 StepFun 相关凭据数量
 	authErr    string
 	checkedAt  time.Time
 }
@@ -120,16 +121,22 @@ func probeAuthList() {
 		disc.Unlock()
 		return
 	}
-	names := make([]string, 0, len(res.Files))
+	// 隐私：不记录任何凭据文件名/标识，只统计数量与是否命中 StepFun。
+	// 该结果仅用于「接入状态」展示，且只在受鉴权的管理接口中返回。
+	total := len(res.Files)
+	stepfunHits := 0
 	for _, f := range res.Files {
 		prov := f.Provider
 		if prov == "" {
 			prov = f.Type
 		}
-		names = append(names, f.Name+" | "+prov+" | "+f.BaseURL)
+		if isStepfunProviderKey(prov) || isStepfunBaseURL(f.BaseURL) {
+			stepfunHits++
+		}
 	}
 	disc.Lock()
-	disc.authProbe = names
+	disc.authTotal = total
+	disc.authStepfun = stepfunHits
 	disc.authErr = ""
 	disc.checkedAt = time.Now().UTC()
 	disc.Unlock()
@@ -196,17 +203,19 @@ func containsString(list []string, v string) bool {
 func discoveryPayload() map[string]any {
 	providers := observedProviders()
 	disc.RLock()
-	authProbe := append([]string(nil), disc.authProbe...)
+	authTotal := disc.authTotal
+	authStepfun := disc.authStepfun
 	authErr := disc.authErr
 	checkedAt := disc.checkedAt
 	disc.RUnlock()
 
+	// 隐私：只输出计数，不输出任何凭据文件名/标识。
 	payload := map[string]any{
 		"providers":      providers,
 		"detected_keys":  providerKeySet(),
 		"identifier_key": currentProviderKey(),
 		"learning":       "从真实请求的 Provider/BaseURL 学习；每有一次 StepFun 请求就会刷新",
-		"raw_entries":    authProbe,
+		"credentials":    map[string]any{"total": authTotal, "stepfun_matched": authStepfun},
 	}
 	if len(providers) > 0 {
 		payload["status"] = "detected"
