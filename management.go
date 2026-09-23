@@ -95,10 +95,10 @@ func registerManagement(raw []byte) managementRegistrationResponse {
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/summary", Description: "StepFun Credit 用量汇总。"},
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/requests", Description: "最近的 StepFun 请求明细。"},
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/prices", Description: "当前生效的模型单价。"},
-			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/quota", Description: "月池总额度设置。"},
+			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/quota-settings", Description: "月池总额度设置。"},
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/discovery", Description: "StepFun 接入识别结果。"},
 			{Method: http.MethodPut, Path: "/plugins/" + pluginID + "/prices", Description: "保存模型单价。"},
-			{Method: http.MethodPut, Path: "/plugins/" + pluginID + "/quota", Description: "保存月池总额度设置。"},
+			{Method: http.MethodPut, Path: "/plugins/" + pluginID + "/quota-settings", Description: "保存月池总额度设置。"},
 			{Method: http.MethodPost, Path: "/plugins/" + pluginID + "/reset", Description: "清空本插件的用量记录。"},
 		},
 		Resources: []resourceRoute{
@@ -161,7 +161,7 @@ func handleManagement(raw []byte) managementResponse {
 		return jsonResponse(http.StatusOK, buildRequestsPayload(req.Query))
 	case path == "/prices":
 		return jsonResponse(http.StatusOK, map[string]any{"prices": priceSnapshot(), "official": officialPrices})
-	case path == "/quota" && req.Method == http.MethodPut:
+	case path == "/quota-settings" && req.Method == http.MethodPut:
 		var body QuotaSettings
 		if err := json.Unmarshal(req.Body, &body); err != nil {
 			return jsonResponse(http.StatusBadRequest, map[string]any{"error": "invalid body"})
@@ -174,7 +174,7 @@ func handleManagement(raw []byte) managementResponse {
 	case path == "/discovery":
 		probeAuthList()
 		return jsonResponse(http.StatusOK, discoveryPayload())
-	case path == "/quota":
+	case path == "/quota-settings":
 		return jsonResponse(http.StatusOK, map[string]any{"quota": currentQuota(), "plan_presets": planPresets})
 	case path == "/reset" && req.Method == http.MethodPost:
 		store.clear()

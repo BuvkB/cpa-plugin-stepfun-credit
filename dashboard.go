@@ -766,7 +766,7 @@ document.getElementById('clearQuota').addEventListener('click', function(){
     btn.disabled = true;
     errEl.textContent = '校验中…';
     // 用受保护的接口验证密钥有效性
-    fetch(MB + '/quota', {headers:{'Authorization':'Bearer ' + k}, cache:'no-store'})
+    fetch(MB + '/quota-settings', {headers:{'Authorization':'Bearer ' + k}, cache:'no-store'})
       .then(function(r){
         if (r.status === 401 || r.status === 403) throw new Error('密钥不正确');
         if (!r.ok) throw new Error('HTTP ' + r.status);
