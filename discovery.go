@@ -190,6 +190,12 @@ func isTrackedRequest(model, baseURL, provider string) bool {
 	return classifyTraffic(model, baseURL, provider) != ""
 }
 
+// isStepfunProviderKey 判断 provider key 是否指向 StepFun
+// （isStepfunBaseURL / isStepModel 定义在 pricing.go）
+func isStepfunProviderKey(key string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(key)), "stepfun")
+}
+
 func containsString(list []string, v string) bool {
 	for _, x := range list {
 		if x == v {
