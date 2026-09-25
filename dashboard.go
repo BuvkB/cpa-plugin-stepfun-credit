@@ -374,10 +374,15 @@ function renderCards(d){
   var total = quotaTotal();
   var used = m.credit * 1e6;
   var remain = total > 0 ? Math.max(total - used, 0) : null;
+  var w = d.window.totals;
+  var mTok = m.total_tokens || (m.input_tokens + m.output_tokens);
+  var wTok = w.total_tokens || (w.input_tokens + w.output_tokens);
   var cards = [
     {k:'本月已用 Credit', v:credit(m.credit), d:'≈ '+yuan(m.credit)+' · '+fmt(m.requests)+' 次请求', hl:false},
+    {k:'本月消耗 Token', v:num(mTok), d:'输入 '+num(m.input_tokens)+' · 输出 '+num(m.output_tokens), hl:false},
     {k:'本月剩余 Credit', v:(remain==null?'未设置':num(remain)), d:remain==null?'点右上角「设置额度」填写月池总额度':'月池额度 '+num(total)+' Credit', hl:remain!=null},
-    {k:(d.range_label || '所选范围')+' 消耗', v:credit(d.window.totals.credit), d:'Credit · ≈ '+yuan(d.window.totals.credit)+' · '+fmt(d.window.totals.requests)+' 次', hl:false},
+    {k:(d.range_label || '所选范围')+' 消耗', v:credit(w.credit), d:'Credit · ≈ '+yuan(w.credit)+' · '+fmt(w.requests)+' 次', hl:false},
+    {k:(d.range_label || '所选范围')+' Token', v:num(wTok), d:'输入 '+num(w.input_tokens)+' · 输出 '+num(w.output_tokens), hl:false},
     {k:'距月末重置', v:(d.days_left||0)+' 天', d:'月池月末清零、不结转'}
   ];
   document.getElementById('cards').innerHTML = cards.map(function(c){
