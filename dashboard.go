@@ -177,20 +177,24 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <div class="panel">
     <h2>本月按模型明细 <span class="hint" id="rangeHint"></span></h2>
     <div class="scroll"><table id="mt">
-      <thead><tr><th>模型</th><th>请求</th><th>失败</th><th>输入</th><th>缓存命中</th><th>输出</th><th>Credit</th><th>≈¥</th></tr></thead>
+      <thead><tr><th>模型</th><th>请求</th><th>失败</th><th>输入 Token</th><th>缓存命中 Token</th><th>输出 Token</th><th>消耗 Credit</th><th>≈ 人民币</th></tr></thead>
       <tbody></tbody><tfoot></tfoot></table></div>
   </div>
 
   <div class="panel">
     <h2>最近请求 <span class="hint" id="reqHint">最新 40 条（本地时间）</span></h2>
     <div class="scroll"><table id="rt">
-      <thead><tr><th>时间</th><th>模型</th><th>输入</th><th>缓存命中</th><th>输出</th><th>结果</th><th>Credit</th></tr></thead>
+      <thead><tr><th>时间</th><th>模型</th><th>输入 Token</th><th>缓存命中 Token</th><th>输出 Token</th><th>结果</th><th>消耗 Credit</th></tr></thead>
       <tbody></tbody></table></div>
   </div>
 
   <div class="note">
+    <b>单位说明</b>　
+    <b>Credit</b> = StepFun Step Plan 计费积分（1 元 = 1,000,000 Credit）　·　
+    <b>Token</b> = 模型输入/输出令牌数　·　
+    <b>¥</b> = 人民币<br>
+    <span class="muted">大数已按「万 / 亿」缩写；悬停图表可看精确到千分位的完整数字。</span><br>
     <b>数据口径</b>：由 CPA 插件在每次请求完成后实时记账（StepFun 官方未开放月池查询接口，故为 CPA 侧按官方单价精确折算）。<br>
-    Credit 折算：1 元 = 1,000,000 Credit。官方单价已内置，可在「设置额度」旁的接口调整。<br>
     <span class="muted">刷新策略：仅在本页可见时每 30 秒刷新一次；切回本页立即刷新；页面隐藏时完全停止。</span>
   </div>
 </div>
@@ -309,16 +313,35 @@ function saveQuota(q){
   try { localStorage.setItem(QUOTA_KEY, JSON.stringify(q)); } catch (e) {}
 }
 var quota = loadQuota();
+// (shortCredit 已合并到上方单位规范区)
+// ============ 单位规范 ============
+// Credit  : StepFun Step Plan 的计费积分，1 元 = 1,000,000 Credit
+// Token   : 模型输入/输出令牌数
+// ¥       : 人民币
+// 大数统一用「万 / 亿」，避免数位数
+function num(v){
+  v = Number(v || 0);
+  if (Math.abs(v) >= 1e8) return (v / 1e8).toFixed(2) + ' 亿';
+  if (Math.abs(v) >= 1e4) return (v / 1e4).toFixed(2) + ' 万';
+  return Number(v).toLocaleString('zh-CN', {maximumFractionDigits: 0});
+}
+// 千分位完整数字（悬停/详情用）
+function fmt(n){ if(n==null) return '—'; return Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+// 元 → Credit 数值（内部记账单位是「元」）
+function credit(c){ return num(Math.round((c||0)*1e6)); }
+// 元 → 带 Credit 单位后缀
+function creditU(c){ return credit(c) + ' Credit'; }
+// 人民币
+function yuan(c){ c=c||0; return '¥'+(c>0&&c<0.01?c.toFixed(4):c.toFixed(2)); }
+// Token
+function token(n){ return num(n) + ' Token'; }
+// 图表 Y 轴用的紧凑写法
 function shortCredit(v){
   v = Number(v||0);
-  if (v >= 1e9) return (v/1e9).toFixed(v>=1e10?0:1)+'B';
-  if (v >= 1e6) return (v/1e6).toFixed(v>=1e7?0:1)+'M';
-  if (v >= 1e3) return (v/1e3).toFixed(v>=1e4?0:1)+'k';
+  if (v >= 1e8) return (v/1e8).toFixed(v>=1e9?0:1)+' 亿';
+  if (v >= 1e4) return (v/1e4).toFixed(v>=1e5?0:1)+' 万';
   return String(Math.round(v));
 }
-function fmt(n){ if(n==null) return '—'; return Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:0}); }
-function credit(c){ return fmt(Math.round((c||0)*1e6)); }
-function yuan(c){ c=c||0; return '¥'+(c>0&&c<0.01?c.toFixed(4):c.toFixed(2)); }
 function localTime(iso){ try{ return new Date(iso).toLocaleString('zh-CN',{hour12:false}); }catch(e){ return iso; } }
 function showErr(e){
   if (e && e.needKey) { blockUI(true); return; }
@@ -342,9 +365,9 @@ function renderCards(d){
   var used = m.credit * 1e6;
   var remain = total > 0 ? Math.max(total - used, 0) : null;
   var cards = [
-    {k:'本月已用', v:credit(m.credit), d:'Credit · ≈ '+yuan(m.credit)+' · '+fmt(m.requests)+' 次请求', hl:false},
-    {k:'本月剩余', v:(remain==null?'未设置':fmt(remain)), d:remain==null?'点右上角「设置额度」填写月池总额度':'Credit · 额度 '+fmt(total), hl:remain!=null},
-    {k:(d.range_label || '所选范围'), v:credit(d.window.totals.credit), d:'Credit · ≈ '+yuan(d.window.totals.credit)+' · '+fmt(d.window.totals.requests)+' 次', hl:false},
+    {k:'本月已用 Credit', v:credit(m.credit), d:'≈ '+yuan(m.credit)+' · '+fmt(m.requests)+' 次请求', hl:false},
+    {k:'本月剩余 Credit', v:(remain==null?'未设置':num(remain)), d:remain==null?'点右上角「设置额度」填写月池总额度':'月池额度 '+num(total)+' Credit', hl:remain!=null},
+    {k:(d.range_label || '所选范围')+' 消耗', v:credit(d.window.totals.credit), d:'Credit · ≈ '+yuan(d.window.totals.credit)+' · '+fmt(d.window.totals.requests)+' 次', hl:false},
     {k:'距月末重置', v:(d.days_left||0)+' 天', d:'月池月末清零、不结转'}
   ];
   document.getElementById('cards').innerHTML = cards.map(function(c){
@@ -374,11 +397,11 @@ function renderQuota(d){
   document.getElementById('quotaBody').innerHTML =
     '<div class="track '+cls+'"><i style="width:'+pct.toFixed(2)+'%"></i></div>' +
     '<div class="qrow">' +
-      '<span>已用 <b>'+fmt(used)+'</b> / '+fmt(total)+' Credit</span>' +
-      '<span>剩余 <b>'+fmt(Math.max(total-used,0))+'</b> Credit</span>' +
+      '<span>已用 <b>'+num(used)+'</b> / '+num(total)+' <span class="muted">Credit</span></span>' +
+      '<span>剩余 <b>'+num(Math.max(total-used,0))+'</b> <span class="muted">Credit</span></span>' +
       '<span class="muted">已用 '+pct.toFixed(2)+'% · 月末重置剩 '+(d.days_left||0)+' 天</span>' +
     '</div>' +
-    '<div class="qrow" style="margin-top:8px"><span class="muted">≈ 已用 '+yuan(m.credit)+' · 剩余约 '+yuan(Math.max(total-used,0)/1e6)+'</span></div>';
+    '<div class="qrow" style="margin-top:8px"><span class="muted">折合人民币：已用 '+yuan(m.credit)+' · 剩余约 '+yuan(Math.max(total-used,0)/1e6)+'</span></div>';
 }
 
 function renderPickers(d){
@@ -475,9 +498,9 @@ function bindChartHover(svg){
     var br = target.getBoundingClientRect();
     tipEl.innerHTML =
       '<div><b>' + (b.label || localTime(b.time)) + '</b></div>' +
-      '<div><b>' + credit(b.credit) + '</b> <span class="tk">Credit</span> · ' + yuan(b.credit) + '</div>' +
+      '<div>消耗 <b>' + credit(b.credit) + ' Credit</b> · ' + yuan(b.credit) + '</div>' +
       '<div class="tk">请求 ' + fmt(b.requests) + (b.failed_requests ? (' · 失败 ' + fmt(b.failed_requests)) : '') + '</div>' +
-      '<div class="tk">输入 ' + fmt(b.input_tokens) + ' · 输出 ' + fmt(b.output_tokens) + '</div>';
+      '<div class="tk">输入 ' + fmt(b.input_tokens) + ' Token · 输出 ' + fmt(b.output_tokens) + ' Token</div>';
     tipEl.hidden = false;
     var tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
     var barLeft = br.left - wr.left;
@@ -587,22 +610,22 @@ function renderModels(rows){
     T.hit += r.cache_read_tokens; T.out += r.output_tokens; T.cr += r.credit||0;
     tb += '<tr><td>'+r.model+'</td><td>'+fmt(r.requests)+'</td>' +
       '<td>'+(r.failed_requests ? '<span class="pill bad">'+fmt(r.failed_requests)+'</span>' : '<span class="pill ok">0</span>')+'</td>' +
-      '<td>'+fmt(r.input_tokens)+'</td><td>'+fmt(r.cache_read_tokens)+'</td><td>'+fmt(r.output_tokens)+'</td>' +
+      '<td>'+num(r.input_tokens)+'</td><td>'+num(r.cache_read_tokens)+'</td><td>'+num(r.output_tokens)+'</td>' +
       '<td><div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">' +
       '<span class="bar"><i style="width:'+pct+'%"></i></span>' +
-      '<b style="min-width:74px;text-align:right">'+credit(r.credit)+'</b></div></td>' +
+      '<b style="min-width:96px;text-align:right">'+credit(r.credit)+'</b></div></td>' +
       '<td>'+yuan(r.credit)+'</td></tr>';
   }
   document.querySelector('#mt tbody').innerHTML = tb || '<tr><td colspan="8" class="muted">本月还没有记录</td></tr>';
   document.querySelector('#mt tfoot').innerHTML = tb ?
-    ('<tr><td>合计</td><td>'+fmt(T.req)+'</td><td>'+fmt(T.fail)+'</td><td>'+fmt(T.inp)+'</td><td>'+fmt(T.hit)+'</td><td>'+fmt(T.out)+'</td><td>'+credit(T.cr)+'</td><td>'+yuan(T.cr)+'</td></tr>') : '';
+    ('<tr><td>合计</td><td>'+fmt(T.req)+'</td><td>'+fmt(T.fail)+'</td><td>'+num(T.inp)+'</td><td>'+num(T.hit)+'</td><td>'+num(T.out)+'</td><td>'+credit(T.cr)+'</td><td>'+yuan(T.cr)+'</td></tr>') : '';
 }
 
 function renderRequests(items){
   var tb = '', i;
   for(i=0;i<items.length;i++){
     var r = items[i];
-    tb += '<tr><td>'+localTime(r.at)+'</td><td>'+r.model+'</td><td>'+fmt(r.input_tokens)+'</td><td>'+fmt(r.cache_read_tokens)+'</td><td>'+fmt(r.output_tokens)+'</td>' +
+    tb += '<tr><td>'+localTime(r.at)+'</td><td>'+r.model+'</td><td>'+num(r.input_tokens)+'</td><td>'+num(r.cache_read_tokens)+'</td><td>'+num(r.output_tokens)+'</td>' +
       '<td>'+(r.failed ? '<span class="pill bad">失败</span>' : '<span class="pill ok">成功</span>')+'</td>' +
       '<td>'+(r.priced ? credit(r.credit) : '<span class="muted">未定价</span>')+'</td></tr>';
   }
