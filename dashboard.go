@@ -509,8 +509,8 @@ function bindChartHover(svg){
     tipEl.innerHTML =
       '<div><b>' + (b.label || localTime(b.time)) + '</b></div>' +
       '<div>消耗 <b>' + credit(b.credit) + ' Credit</b> · ' + yuan(b.credit) + '</div>' +
-      '<div class="tk">请求 ' + fmt(b.requests) + (b.failed_requests ? (' · 失败 ' + fmt(b.failed_requests)) : '') + '</div>' +
-      '<div class="tk">输入 ' + fmt(b.input_tokens) + ' Token · 输出 ' + fmt(b.output_tokens) + ' Token</div>';
+      '<div class="tk">请求 ' + num(b.requests) + (b.failed_requests ? (' · 失败 ' + num(b.failed_requests)) : '') + '</div>' +
+      '<div class="tk">输入 ' + num(b.input_tokens) + ' Token · 输出 ' + num(b.output_tokens) + ' Token</div>';
     tipEl.hidden = false;
     var tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
     var barLeft = br.left - wr.left;
@@ -692,7 +692,7 @@ function buildPresets(){
   var html = '';
   for (var i=0;i<presets.length;i++){
     var p = presets[i];
-    html += '<button class="opt" data-credit="'+p.credit+'" data-name="'+p.name+'"><b>'+p.name+'</b><span>'+fmt(p.credit)+' Credit</span></button>';
+    html += '<button class="opt" data-credit="'+p.credit+'" data-name="'+p.name+'"><b>'+p.name+'</b><span>'+num(p.credit)+' Credit</span></button>';
   }
   box.innerHTML = html;
   Array.prototype.forEach.call(box.querySelectorAll('.opt'), function(el){
@@ -711,7 +711,7 @@ function renderSubRows(){
     var sub = subs[i];
     var opts = '<option value="">自定义</option>' + presets.map(function(p){
       var sel = (Number(p.credit) === Number(sub.credit)) ? ' selected' : '';
-      return '<option value="'+p.credit+'"'+sel+'>'+p.name+' ('+shortCredit(p.credit)+')</option>';
+      return '<option value="'+p.credit+'"'+sel+'>'+p.name+' ('+num(p.credit)+' Credit)</option>';
     }).join('');
     html += '<div class="subrow" data-i="'+i+'">'
       + '<select class="sub-plan">'+opts+'</select>'
@@ -762,7 +762,7 @@ function updateSubTotal(){
   var el = document.getElementById('subTotal');
   if (!el) return;
   var t = quotaTotal();
-  el.textContent = t > 0 ? ('合计 ' + fmt(t) + ' Credit ≈ ' + yuan(t/1e6)) : '未填写额度';
+  el.textContent = t > 0 ? ('合计 ' + num(t) + ' Credit ≈ ' + yuan(t/1e6)) : '未填写额度';
 }
 function openSettings(){
   quota = loadQuota();
