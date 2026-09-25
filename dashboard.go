@@ -222,7 +222,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <h3 style="margin:0 0 6px;font-size:16px;font-weight:600">需要 CPA 管理密钥</h3>
     <p style="margin:0 0 14px;color:var(--text-tertiary);font-size:12.5px;line-height:1.7">
       用量数据属于敏感信息，按 CLIProxyAPI 路由规范，读取需经管理密钥鉴权。<br>
-      密钥仅保存在本标签页的 sessionStorage，关闭即失效，不写入服务器。
+      密钥仅保存在本标签页的 sessionStorage，关闭即失效，不写入服务器。<br>
+      <b style="color:var(--warning-color)">注意</b>：连续输错 5 次会触发 CPA 的 IP 限制（30 分钟），届时需等待或重启 CPA。
     </p>
     <div style="display:flex;gap:8px">
       <input id="gateInput" type="password" autocomplete="off" placeholder="Management Key"
@@ -344,7 +345,16 @@ function shortCredit(v){
 }
 function localTime(iso){ try{ return new Date(iso).toLocaleString('zh-CN',{hour12:false}); }catch(e){ return iso; } }
 function showErr(e){
-  if (e && e.needKey) { blockUI(true); return; }
+  if (e && e.needKey) {
+    // 鉴权失败：立刻停掉自动轮询，并清除本地坏密钥，防止反复触发封禁
+    authFails++;
+    stopTimer();
+    setMgmtKey('');
+    blockUI(true);
+    var ge = document.getElementById('gateErr');
+    if (ge) ge.textContent = (authFails >= 1) ? '密钥无效或 IP 已被临时限制。请稍等片刻后重新输入正确密钥。' : '';
+    return;
+  }
   var el = document.getElementById('err');
   el.style.display = 'block';
   el.textContent = '取数失败：' + e.message;
@@ -653,13 +663,17 @@ function load(){
     renderRequests(res[1].items || []);
     document.getElementById('rangeHint').textContent = '本月 1 日 00:00 (UTC) 至今';
     document.getElementById('sub').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN') + ' · 可见时每 30 秒刷新';
+    authFails = 0;
     hideErr();
   }).catch(showErr).then(function(){ loading = false; });
 }
 
 /* 只在页面可见时定时刷新，隐藏即停 */
+// 鉴权失败计数：一旦失败立即停止自动重试，避免触发 CPA 的 IP 封禁（5 次失败封 30 分钟）
+var authFails = 0;
 function startTimer(){
   if (timer) return;
+  if (authFails > 0) return;   // 鉴权已失败，不再自动轮询
   timer = setInterval(function(){ if (!document.hidden) load(); }, INTERVAL_MS);
 }
 function stopTimer(){
@@ -795,11 +809,14 @@ document.getElementById('clearQuota').addEventListener('click', function(){
         if (!r.ok) throw new Error('HTTP ' + r.status);
         setMgmtKey(k);
         input.value = '';
+        authFails = 0;
         blockUI(false);
         load();
         startTimer();
       })
-      .catch(function(e){ errEl.textContent = e.message; })
+      .catch(function(e){
+        errEl.textContent = /IP banned/i.test(e.message) ? 'IP 已被临时限制，请等 30 分钟或重启 CPA 后再试' : e.message;
+      })
       .then(function(){ btn.disabled = false; });
   }
 
