@@ -1,6 +1,6 @@
 # CPA StepFun Credit Tracker
 
-CLIProxyAPI 插件：实时统计 **StepFun Step Plan** 的 Credit 消耗。
+CLIProxyAPI 插件：实时统计 **StepFun Step Plan**（现行套餐 Token Plan，Credit 月池）的 Credit 消耗。
 
 StepFun 官方没有开放订阅月池的查询接口，所以这个插件在 CPA 侧按每个请求的真实 token 用量、
 结合官方单价折算 Credit，让你随时知道这个月花了多少、还剩多少。
@@ -75,7 +75,9 @@ openai-compatibility:
 ## 关于额度
 
 月池总额度需要你自己填（StepFun 不提供查询接口）：打开插件页右上角「设置额度」，
-按实际订阅选档位即可。有多个订阅就逐个添加，会自动累加。此设置保存在浏览器本地。
+按实际订阅选档位即可。下拉框内置官方四个档位（Flash Mini 400M / Flash Plus 1600M /
+Flash Pro 8000M / Flash Max 40000M）与两个加油包（小 400M / 大 1600M，独立 30 天周期），
+也可以填自定义数值。有多个订阅就逐个添加，会自动累加。此设置保存在浏览器本地。
 
 ## 说明
 

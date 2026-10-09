@@ -19,12 +19,18 @@ type planPreset struct {
 	Credit float64 `json:"credit"`
 }
 
-// 官方档位（Step Plan 概述）
+// 官方档位（Step Plan 概述；Step Plan 自 2026-06-18 起升级为 Token Plan，Credit 月池）
 var planPresets = []planPreset{
 	{Name: "Flash Mini", Credit: 400e6},
 	{Name: "Flash Plus", Credit: 1600e6},
 	{Name: "Flash Pro", Credit: 8000e6},
 	{Name: "Flash Max", Credit: 40000e6},
+}
+
+// 官方加油包（Step Plan 概述；当月月池用尽后可加购，独立 30 天周期，与套餐到期时间无关）
+var boosterPresets = []planPreset{
+	{Name: "加油包 · 小", Credit: 400e6},
+	{Name: "加油包 · 大", Credit: 1600e6},
 }
 
 var (

@@ -190,7 +190,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
   <div class="note">
     <b>单位说明</b>　
-    <b>Credit</b> = StepFun Step Plan 计费积分（1 元 = 1,000,000 Credit）　·　
+    <b>Credit</b> = StepFun Token Plan 计费积分（1 元 = 1,000,000 Credit）　·　
     <b>Token</b> = 模型输入/输出令牌数　·　
     <b>¥</b> = 人民币<br>
     <span class="muted">大数已按「万 / 亿」缩写；悬停图表可看精确到千分位的完整数字。</span><br>
@@ -202,7 +202,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <dialog id="setDlg"><div class="dlg">
   <h3>月池额度</h3>
   <p>StepFun 不提供月池余额查询接口，按实际订阅填写后即可算出已用 / 剩余 / 占比。<br>
-     <span class="muted">多个订阅会累加为总月池；此设置保存在本机浏览器，不写入服务器。</span></p>
+     <span class="muted">多个订阅会累加为总月池；加油包可另加一行（独立 30 天周期）；此设置保存在本机浏览器，不写入服务器。</span></p>
   <div id="subList"></div>
   <div class="acts" style="margin-top:4px">
     <button id="addSub">+ 添加订阅</button>
@@ -241,7 +241,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 var MB = '/v0/management/plugins/stepfun-credit-tracker';
 var MKI = 'stepfun-credit-mgmt-key';   // sessionStorage 键名（仅当前标签页有效）
 var INTERVAL_MS = 30000;
-var timer = null, presets = [], loading = false, QUOTA_KEY = 'stepfun-credit-quota';
+var timer = null, presets = [], boosters = [], loading = false, QUOTA_KEY = 'stepfun-credit-quota';
 var RANGE_KEY = 'stepfun-credit-range', GRAN_KEY = 'stepfun-credit-gran';
 var curRange = (function(){ try { return localStorage.getItem(RANGE_KEY) || '24h'; } catch(e){ return '24h'; } })();
 var curGran = (function(){ try { return localStorage.getItem(GRAN_KEY) || 'auto'; } catch(e){ return 'auto'; } })();
@@ -316,7 +316,7 @@ function saveQuota(q){
 var quota = loadQuota();
 // (shortCredit 已合并到上方单位规范区)
 // ============ 单位规范 ============
-// Credit  : StepFun Step Plan 的计费积分，1 元 = 1,000,000 Credit
+// Credit  : StepFun Token Plan 的计费积分，1 元 = 1,000,000 Credit
 // Token   : 模型输入/输出令牌数
 // ¥       : 人民币
 // 大数统一用「万 / 亿」，避免数位数
@@ -656,6 +656,7 @@ function load(){
   return Promise.all([get('/summary' + qs), get('/requests?limit=40')]).then(function(res){
     var d = res[0];
     if (d.plan_presets && d.plan_presets.length) { presets = d.plan_presets; }
+    if (d.booster_presets) { boosters = d.booster_presets; }
     timeline = d.timeline || null;
     renderPickers(d);
     renderCards(d);
@@ -714,10 +715,20 @@ function renderSubRows(){
   var html = '<div class="subhead"><span>档位</span><span>单份额度（Credit）</span><span></span></div>';
   for (var i=0;i<subs.length;i++){
     var sub = subs[i];
+    // 选中匹配：无名/自定义按额度匹配（兼容旧数据）；有名按名称+额度匹配，避免加油包与同额度档位串名
+    function optSel(p){
+      if (Number(p.credit) !== Number(sub.credit)) return '';
+      if (!sub.name || sub.name === '自定义') return ' selected';
+      return sub.name === p.name ? ' selected' : '';
+    }
     var opts = '<option value="">自定义</option>' + presets.map(function(p){
-      var sel = (Number(p.credit) === Number(sub.credit)) ? ' selected' : '';
-      return '<option value="'+p.credit+'"'+sel+'>'+p.name+' ('+num(p.credit)+' Credit)</option>';
+      return '<option value="'+p.credit+'"'+optSel(p)+'>'+p.name+' ('+num(p.credit)+' Credit)</option>';
     }).join('');
+    if (boosters.length) {
+      opts += '<option disabled>── 加油包（独立 30 天周期）──</option>' + boosters.map(function(p){
+        return '<option value="'+p.credit+'"'+optSel(p)+'>'+p.name+' ('+num(p.credit)+' Credit)</option>';
+      }).join('');
+    }
     html += '<div class="subrow" data-i="'+i+'">'
       + '<select class="sub-plan">'+opts+'</select>'
       + '<input class="sub-credit" inputmode="numeric" value="'+(sub.credit==null||sub.credit===''?'':sub.credit)+'" placeholder="1600000000">'

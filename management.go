@@ -175,7 +175,7 @@ func handleManagement(raw []byte) managementResponse {
 		probeAuthList()
 		return jsonResponse(http.StatusOK, discoveryPayload())
 	case path == "/quota-settings":
-		return jsonResponse(http.StatusOK, map[string]any{"quota": currentQuota(), "plan_presets": planPresets})
+		return jsonResponse(http.StatusOK, map[string]any{"quota": currentQuota(), "plan_presets": planPresets, "booster_presets": boosterPresets})
 	case path == "/reset" && req.Method == http.MethodPost:
 		store.clear()
 		return jsonResponse(http.StatusOK, map[string]any{"status": "ok"})
@@ -266,23 +266,24 @@ func buildSummaryPayload(q url.Values) map[string]any {
 		rangeKey = "custom"
 	}
 	return map[string]any{
-		"plugin":         pluginName,
-		"version":        pluginVersion,
-		"now":            time.Now().UTC().Format(time.RFC3339),
-		"range":          map[string]any{"start": from.Format(time.RFC3339), "end": to.Format(time.RFC3339), "key": rangeKey},
-		"range_label":    rangeLabel(rangeKey),
-		"granularity":    gran,
-		"timeline":       describeTimeline(),
-		"month":          month,
-		"hour":           hour,
-		"window":         window,
-		"days_left":      daysLeftInMonth(),
-		"quota":          currentQuota(),
-		"plan_presets":   planPresets,
-		"discovery":      discoveryPayload(),
-		"prices":         priceSnapshot(),
-		"official":       officialPrices,
-		"credit_per_cny": 1e6,
+		"plugin":          pluginName,
+		"version":         pluginVersion,
+		"now":             time.Now().UTC().Format(time.RFC3339),
+		"range":           map[string]any{"start": from.Format(time.RFC3339), "end": to.Format(time.RFC3339), "key": rangeKey},
+		"range_label":     rangeLabel(rangeKey),
+		"granularity":     gran,
+		"timeline":        describeTimeline(),
+		"month":           month,
+		"hour":            hour,
+		"window":          window,
+		"days_left":       daysLeftInMonth(),
+		"quota":           currentQuota(),
+		"plan_presets":    planPresets,
+		"booster_presets": boosterPresets,
+		"discovery":       discoveryPayload(),
+		"prices":          priceSnapshot(),
+		"official":        officialPrices,
+		"credit_per_cny":  1e6,
 	}
 }
 

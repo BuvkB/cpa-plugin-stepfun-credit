@@ -14,13 +14,23 @@ type Price struct {
 
 // 官方定价（元 / 1M tokens）
 // 来源：https://platform.stepfun.com/docs/zh/guides/pricing/details
+// 注意：按字符 / 音频时长计费的模型（stepaudio-2.5-tts、stepaudio-2.5-asr、
+// stepaudio-3-tts、stepaudio-3-asr-max 等）不走 token 计量，不在本表内，
+// 出现在明细中会显示「未定价」。
 var officialPrices = map[string]Price{
-	"step-5-preview":         {Input: 7.00, CacheRead: 0.35, Output: 20.00},
-	"step-3.7-flash":         {Input: 1.35, CacheRead: 0.27, Output: 8.10},
-	"step-3.5-flash":         {Input: 0.70, CacheRead: 0.14, Output: 2.10},
-	"step-3.5-flash-2603":    {Input: 0.70, CacheRead: 0.14, Output: 2.10},
-	"stepaudio-2.5-chat":     {Input: 10.0, CacheRead: 2.00, Output: 25.00},
-	"stepaudio-2.5-realtime": {Input: 10.0, CacheRead: 2.00, Output: 70.00},
+	"step-5-preview":               {Input: 7.00, CacheRead: 0.35, Output: 20.00},
+	"step-3.7-flash":               {Input: 1.35, CacheRead: 0.27, Output: 8.10},
+	"step-3.5-flash":               {Input: 0.70, CacheRead: 0.14, Output: 2.10},
+	"step-3.5-flash-2603":          {Input: 0.70, CacheRead: 0.14, Output: 2.10},
+	"step-1o-turbo-vision":         {Input: 2.50, CacheRead: 0.50, Output: 8.00},
+	"stepaudio-2.5-chat":           {Input: 10.0, CacheRead: 2.00, Output: 25.00},
+	"stepaudio-2.5-realtime":       {Input: 10.0, CacheRead: 2.00, Output: 70.00},
+	"stepaudio-3-realtime-preview": {Input: 0, CacheRead: 0, Output: 0}, // 限时免费，恢复收费后需更新
+	"stepaudio-3-chat-preview":     {Input: 0, CacheRead: 0, Output: 0}, // 限时免费，恢复收费后需更新
+	// step-router-v1 是智能路由模型，按实际命中的底层引擎计费
+	// （deepseek-v4-pro 或 step-3.7-flash，其中 deepseek-v4-pro 单价未公布）。
+	// 此处按默认执行引擎 step-3.7-flash 近似，复杂请求实际消耗会更高。
+	"step-router-v1": {Input: 1.35, CacheRead: 0.27, Output: 8.10},
 }
 
 var (

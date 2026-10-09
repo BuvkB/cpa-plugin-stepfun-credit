@@ -85,7 +85,7 @@ func fetchQuota(raw []byte) quotaFetchResponse {
 	hour := summarize(now.Add(-time.Hour), now, 300)
 
 	resetTime := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
-	planName := "Step Plan · Credit 月池"
+	planName := "Token Plan · Credit 月池"
 	if providers := observedProviders(); len(providers) > 0 && providers[0].BaseURL != "" {
 		planName = providers[0].BaseURL
 	}
