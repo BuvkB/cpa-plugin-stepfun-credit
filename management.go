@@ -87,9 +87,14 @@ func registerManagement(raw []byte) managementRegistrationResponse {
 	state.routes = routes
 	state.mu.Unlock()
 
-	// 安全边界：/v0/resource/plugins/<id>/* 是**免鉴权**的静态资源路径，
-	// 只允许放被动静态内容（HTML/CSS/JS）。任何动态数据都必须注册为
-	// Routes（/v0/management/plugins/<id>/*），由 CPA 管理密钥保护。
+	// 安全边界（v1.5.0 起）：CPA 对 /v0/management/* 是无状态 Bearer
+	// 门禁（无会话无 Cookie，每次请求都要管理密钥），插件无法按路由绕过；
+	// /v0/resource/plugins/<id>/* 是免鉴权的 GET 通道（CPA 动态分发给插件）。
+	// 因此拆成两层：
+	//   - 写操作与令牌兑换仍在 Routes（/v0/management/plugins/<id>/*），
+	//     由 CPA 管理密钥保护；
+	//   - 读数据（/data/*）走 Resources，免管理密钥，但要求插件颁发的
+	//     只读令牌（X-Read-Token 头），见 readtoken.go——不是完全公开。
 	return managementRegistrationResponse{
 		Routes: []managementRoute{
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/summary", Description: "StepFun Credit 用量汇总。"},
@@ -97,6 +102,7 @@ func registerManagement(raw []byte) managementRegistrationResponse {
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/prices", Description: "当前生效的模型单价。"},
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/quota-settings", Description: "月池总额度设置。"},
 			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/discovery", Description: "StepFun 接入识别结果。"},
+			{Method: http.MethodGet, Path: "/plugins/" + pluginID + "/read-token", Description: "换取数据展示只读令牌（一次性；之后免管理密钥查看）。"},
 			{Method: http.MethodPut, Path: "/plugins/" + pluginID + "/prices", Description: "保存模型单价。"},
 			{Method: http.MethodPut, Path: "/plugins/" + pluginID + "/quota-settings", Description: "保存月池总额度设置。"},
 			{Method: http.MethodPost, Path: "/plugins/" + pluginID + "/reset", Description: "清空本插件的用量记录。"},
@@ -105,7 +111,27 @@ func registerManagement(raw []byte) managementRegistrationResponse {
 			{
 				Path:        "/dashboard",
 				Menu:        "StepFun Credit",
-				Description: "StepFun Credit 用量面板（纯静态页面，数据经管理接口按需拉取）。",
+				Description: "StepFun Credit 用量面板（纯静态页面，数据经只读令牌按需拉取）。",
+			},
+			{
+				Path:        "/data/summary",
+				Description: "用量汇总（只读令牌鉴权，免管理密钥；仅 GET）。",
+			},
+			{
+				Path:        "/data/requests",
+				Description: "最近请求明细（只读令牌鉴权，免管理密钥；仅 GET）。",
+			},
+			{
+				Path:        "/data/prices",
+				Description: "当前生效的模型单价（只读令牌鉴权，免管理密钥；仅 GET）。",
+			},
+			{
+				Path:        "/data/quota",
+				Description: "月池总额度设置（只读令牌鉴权，免管理密钥；仅 GET）。",
+			},
+			{
+				Path:        "/data/discovery",
+				Description: "StepFun 接入识别结果（只读令牌鉴权，免管理密钥；仅 GET）。",
 			},
 		},
 	}
@@ -155,6 +181,30 @@ func handleManagement(raw []byte) managementResponse {
 	switch {
 	case path == "/dashboard" || path == "/dashboard/":
 		return htmlResponse(http.StatusOK, dashboardHTML)
+	case path == "/read-token":
+		// 该路由注册在 /v0/management/* 下，由 CPA 管理密钥保护：
+		// 用一次性密钥换取只读令牌，之后数据展示不再需要密钥。
+		return jsonResponse(http.StatusOK, map[string]any{"token": currentReadToken()})
+	case path == "/data/summary" || path == "/data/requests" || path == "/data/prices" || path == "/data/quota" || path == "/data/discovery":
+		// 免管理密钥的读数据通道（/v0/resource/plugins/<id>/data/*，仅 GET）：
+		// 要求插件颁发的只读令牌（X-Read-Token 头），只读、不能写。
+		if !readTokenOK(req.Headers.Get("X-Read-Token")) {
+			return jsonResponse(http.StatusUnauthorized, map[string]any{"error": "invalid read token"})
+		}
+		switch path {
+		case "/data/summary":
+			return jsonResponse(http.StatusOK, buildSummaryPayload(req.Query))
+		case "/data/requests":
+			return jsonResponse(http.StatusOK, buildRequestsPayload(req.Query))
+		case "/data/prices":
+			return jsonResponse(http.StatusOK, map[string]any{"prices": priceSnapshot(), "official": officialPrices})
+		case "/data/quota":
+			return jsonResponse(http.StatusOK, map[string]any{"quota": currentQuota(), "plan_presets": planPresets, "booster_presets": boosterPresets})
+		case "/data/discovery":
+			probeAuthList()
+			return jsonResponse(http.StatusOK, discoveryPayload())
+		}
+		return jsonResponse(http.StatusNotFound, map[string]any{"error": "unknown route: " + path})
 	case path == "/summary":
 		return jsonResponse(http.StatusOK, buildSummaryPayload(req.Query))
 	case path == "/requests":

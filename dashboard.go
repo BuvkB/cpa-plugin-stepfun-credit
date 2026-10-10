@@ -221,8 +221,9 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <div style="background:var(--bg-primary);border:1px solid var(--border-color);border-radius:12px;padding:22px 24px;max-width:430px;width:92%">
     <h3 style="margin:0 0 6px;font-size:16px;font-weight:600">需要 CPA 管理密钥</h3>
     <p style="margin:0 0 14px;color:var(--text-tertiary);font-size:12.5px;line-height:1.7">
-      用量数据属于敏感信息，按 CLIProxyAPI 路由规范，读取需经管理密钥鉴权。<br>
-      密钥仅保存在本标签页的 sessionStorage，关闭即失效，不写入服务器。<br>
+      仅首次进入需要输入一次管理密钥：校验通过后插件会颁发一个<b>只读令牌</b>存在本浏览器，<br>
+      之后打开本页直接查看用量，不再需要密钥。管理密钥不长期保存（仅本标签页临时有效，关闭即失效）。<br>
+      只读令牌只能查看数据、不能修改任何设置；涉及 API Key 等敏感操作仍在 CPA 管理后台进行。<br>
       <b style="color:var(--warning-color)">注意</b>：连续输错 5 次会触发 CPA 的 IP 限制（30 分钟），届时需等待或重启 CPA。
     </p>
     <div style="display:flex;gap:8px">
@@ -239,7 +240,9 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 (function(){
 'use strict';
 var MB = '/v0/management/plugins/stepfun-credit-tracker';
+var RB = '/v0/resource/plugins/stepfun-credit-tracker';  // 免鉴权资源路径（读数据，需只读令牌）
 var MKI = 'stepfun-credit-mgmt-key';   // sessionStorage 键名（仅当前标签页有效）
+var RTI = 'stepfun-credit-read-token'; // localStorage 键名（只读令牌，本浏览器持久）
 var INTERVAL_MS = 30000;
 var timer = null, presets = [], boosters = [], loading = false, QUOTA_KEY = 'stepfun-credit-quota';
 var RANGE_KEY = 'stepfun-credit-range', GRAN_KEY = 'stepfun-credit-gran';
@@ -281,8 +284,19 @@ detectTheme();
 /* ---------- 工具 ---------- */
 function mgmtKey(){ try { return sessionStorage.getItem(MKI) || ''; } catch (e) { return ''; } }
 function setMgmtKey(k){ try { if (k) sessionStorage.setItem(MKI, k); else sessionStorage.removeItem(MKI); } catch (e) {} }
-// 数据全部走管理接口（受 CPA 管理密钥保护）
+function readToken(){ try { return localStorage.getItem(RTI) || ''; } catch (e) { return ''; } }
+function setReadToken(t){ try { if (t) localStorage.setItem(RTI, t); else localStorage.removeItem(RTI); } catch (e) {} }
+// 读数据：有只读令牌就走免密钥的资源路径；令牌失效时回退到管理密钥门禁
 function get(p){
+  var t = readToken();
+  if (t) {
+    return fetch(RB + p, {cache:'no-store', headers:{'X-Read-Token': t}})
+      .then(function(r){
+        if (r.status === 401) { var e = new Error('NEED_READ_TOKEN'); e.needReadToken = true; throw e; }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+  }
   return fetch(MB + p, {cache:'no-store', headers:{'Authorization':'Bearer '+mgmtKey()}})
     .then(function(r){
       if (r.status === 401 || r.status === 403) { var e = new Error('NEED_KEY'); e.needKey = true; throw e; }
@@ -345,6 +359,16 @@ function shortCredit(v){
 }
 function localTime(iso){ try{ return new Date(iso).toLocaleString('zh-CN',{hour12:false}); }catch(e){ return iso; } }
 function showErr(e){
+  if (e && e.needReadToken) {
+    // 只读令牌失效（被删/重新生成）：清掉旧令牌，回到一次性密钥门禁
+    setReadToken('');
+    stopTimer();
+    authFails = 0;
+    blockUI(true);
+    var ge = document.getElementById('gateErr');
+    if (ge) ge.textContent = '本地阅读令牌已失效，请重新输入一次管理密钥。';
+    return;
+  }
   if (e && e.needKey) {
     // 鉴权失败：立刻停掉自动轮询，并清除本地坏密钥，防止反复触发封禁
     authFails++;
@@ -792,7 +816,7 @@ function saveSettings(){
   document.getElementById('setDlg').close();
   load();
 }
-document.getElementById('refresh').addEventListener('click', function(){ if (!mgmtKey()) { blockUI(true); return; } load(); });
+document.getElementById('refresh').addEventListener('click', function(){ if (!readToken() && !mgmtKey()) { blockUI(true); return; } load(); });
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('cancelSet').addEventListener('click', function(){ document.getElementById('setDlg').close(); });
 document.getElementById('saveSet').addEventListener('click', saveSettings);
@@ -818,11 +842,16 @@ document.getElementById('clearQuota').addEventListener('click', function(){
     if (!k) { errEl.textContent = '请输入管理密钥'; return; }
     btn.disabled = true;
     errEl.textContent = '校验中…';
-    // 用受保护的接口验证密钥有效性
-    fetch(MB + '/quota-settings', {headers:{'Authorization':'Bearer ' + k}, cache:'no-store'})
+    // 用受保护的管理接口验证密钥，并换取只读令牌（一次性；之后免密钥查看）
+    fetch(MB + '/read-token', {headers:{'Authorization':'Bearer ' + k}, cache:'no-store'})
       .then(function(r){
         if (r.status === 401 || r.status === 403) throw new Error('密钥不正确');
         if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(d){
+        if (!d || !d.token) throw new Error('未拿到只读令牌');
+        setReadToken(d.token);
         setMgmtKey(k);
         input.value = '';
         authFails = 0;
@@ -839,7 +868,8 @@ document.getElementById('clearQuota').addEventListener('click', function(){
   btn.addEventListener('click', submit);
   input.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') submit(); });
 
-  if (mgmtKey()) { load(); startTimer(); }
+  if (readToken()) { load(); startTimer(); }
+  else if (mgmtKey()) { load(); startTimer(); }
   else { blockUI(true); }
 })();
 })();
