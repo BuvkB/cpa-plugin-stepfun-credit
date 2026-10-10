@@ -6,7 +6,7 @@ import (
 )
 
 const pluginName = "StepFun Credit Tracker"
-const pluginVersion = "1.5.0"
+const pluginVersion = "1.5.2"
 const pluginRepo = "https://github.com/BuvkB/cpa-plugin-stepfun-credit"
 
 // StepFun 官方图标（开放平台 title-logo）

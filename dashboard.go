@@ -236,6 +236,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   </div>
 </div>
 
+<div id="storeNote" style="display:none;margin:0 16px;padding:8px 12px;border:1px solid var(--border-color);border-radius:8px;color:var(--text-tertiary);font-size:12.5px;line-height:1.6">
+  浏览器存储不可用（隐私设置或嵌入环境限制）：只读令牌只在当前页面生效，刷新或重开后需要再输入一次管理密钥。
+  也可用 <code>?token=&lt;只读令牌&gt;</code> 拼接网址打开，免去每次输入。
+</div>
+
 <script>
 (function(){
 'use strict';
@@ -282,15 +287,37 @@ try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change
 detectTheme();
 
 /* ---------- 工具 ---------- */
-function mgmtKey(){ try { return sessionStorage.getItem(MKI) || ''; } catch (e) { return ''; } }
-function setMgmtKey(k){ try { if (k) sessionStorage.setItem(MKI, k); else sessionStorage.removeItem(MKI); } catch (e) {} }
-function readToken(){ try { return localStorage.getItem(RTI) || ''; } catch (e) { return ''; } }
-function setReadToken(t){ try { if (t) localStorage.setItem(RTI, t); else localStorage.removeItem(RTI); } catch (e) {} }
-// 读数据：有只读令牌就走免密钥的资源路径；令牌失效时回退到管理密钥门禁
+// 存储兜底：部分浏览器/嵌入环境（隐私设置、屏蔽存储、沙箱 iframe）会让
+// localStorage/sessionStorage 抛异常。此时退回内存变量——当前标签页内不再
+// 重复输入，刷新后需要重新输入；也可用 URL ?token= 提供完全不依赖存储的入口。
+var memToken = '', memKey = '';
+function mgmtKey(){
+  if (memKey) return memKey;
+  try { var k = sessionStorage.getItem(MKI) || ''; if (k) { memKey = k; return k; } } catch (e) {}
+  return '';
+}
+function setMgmtKey(k){
+  memKey = k || '';
+  try { if (k) sessionStorage.setItem(MKI, k); else sessionStorage.removeItem(MKI); } catch (e) {}
+}
+function readToken(){
+  if (memToken) return memToken;
+  try { var t = localStorage.getItem(RTI) || ''; if (t) { memToken = t; return t; } } catch (e) {}
+  return '';
+}
+function setReadToken(t){
+  memToken = t || '';
+  try { if (t) localStorage.setItem(RTI, t); else localStorage.removeItem(RTI); } catch (e) {}
+}
+// 存储体检：令牌是否真正落盘（决定刷新后还要不要重新输入）
+function tokenPersisted(t){
+  try { return !!t && localStorage.getItem(RTI) === t; } catch (e) { return false; }
+}
+// 读数据：有只读令牌就走免密钥的资源路径（/data/* 前缀）；令牌失效时回退到管理密钥门禁
 function get(p){
   var t = readToken();
   if (t) {
-    return fetch(RB + p, {cache:'no-store', headers:{'X-Read-Token': t}})
+    return fetch(RB + '/data' + p, {cache:'no-store', headers:{'X-Read-Token': t}})
       .then(function(r){
         if (r.status === 401) { var e = new Error('NEED_READ_TOKEN'); e.needReadToken = true; throw e; }
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -709,11 +736,13 @@ function startTimer(){
 function stopTimer(){
   if (timer) { clearInterval(timer); timer = null; }
 }
+// 没有凭据（令牌/密钥都没有）时绝不自动发请求：既避免门禁还没输入就刷错误，
+// 也避免无密钥 401 累积 CPA 的防爆破计数（同一 IP 5 次失败封 30 分钟）。
 document.addEventListener('visibilitychange', function(){
   if (document.hidden) { stopTimer(); }
-  else { load(); startTimer(); }   // 切回本页立即刷新
+  else if (readToken() || mgmtKey()) { load(); startTimer(); }   // 切回本页立即刷新
 });
-window.addEventListener('focus', function(){ if (!document.hidden) load(); });
+window.addEventListener('focus', function(){ if (!document.hidden && (readToken() || mgmtKey())) load(); });
 window.addEventListener('pagehide', stopTimer);
 
 /* ---------- 设置对话框 ---------- */
@@ -856,6 +885,9 @@ document.getElementById('clearQuota').addEventListener('click', function(){
         input.value = '';
         authFails = 0;
         blockUI(false);
+        // 存储体检：令牌没落盘就明说——刷新后需要重新输入一次
+        var note = document.getElementById('storeNote');
+        if (note) note.style.display = tokenPersisted(d.token) ? 'none' : 'block';
         load();
         startTimer();
       })
@@ -867,6 +899,12 @@ document.getElementById('clearQuota').addEventListener('click', function(){
 
   btn.addEventListener('click', submit);
   input.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') submit(); });
+
+  // URL 兜底：?token=<只读令牌>，供存储不可用的环境使用（仅内存生效，不落盘）
+  try {
+    var ut = new URLSearchParams(location.search).get('token');
+    if (ut) setReadToken(ut.trim());
+  } catch (e) {}
 
   if (readToken()) { load(); startTimer(); }
   else if (mgmtKey()) { load(); startTimer(); }
